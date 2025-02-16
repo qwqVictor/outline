@@ -47,11 +47,9 @@ jobs:
           REPO="${{ github.repository }}"
           echo "REPO=${REPO,,}" >> $GITHUB_ENV
 
-      - name: Build and push final Docker image
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: |
-            ghcr.io/${{ env.REPO }}:${{ env.TAG }}
+      - name: Build and push docker image
+        run: |
+          set -e
+          docker build -t outlinewiki/outline-base -f Dockerfile.base .
+          docker build -t ghcr.io/${{ env.REPO }}:${{ env.TAG }} .
+          docker push ghcr.io/${{ env.REPO }}:${{ env.TAG }}
