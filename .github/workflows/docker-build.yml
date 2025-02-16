@@ -29,15 +29,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Determine tag
+      - name: Get the short SHA
         id: vars
+        run: echo "GIT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - name: Determine tag
+        id: tag_var
         run: |
-          if [ -n "${{ github.event.head_commit.message }}" ]; then
-            TAG=${{ github.event.head_commit.message }}
+          if [ -n "${{ github.event.release.tag_name }}" ]; then
+            echo "TAG=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
           else
-            TAG=${{ github.sha }}
-          fi
-          echo "TAG=$TAG" >> $GITHUB_ENV
+            echo "TAG=${{ env.GIT_SHA }}" >> $GITHUB_ENV
 
       - name: Build and push final Docker image
         uses: docker/build-push-action@v2
