@@ -604,7 +604,7 @@ class DocumentScene extends React.Component<Props> {
                 )}
               </React.Suspense>
             </Main>
-            {isShare &&
+            {false && isShare &&
               !parseDomain(window.location.origin).custom &&
               !auth.user && (
                 <Branding href="//www.getoutline.com?ref=sharelink" />
