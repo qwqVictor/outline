@@ -40,6 +40,7 @@ jobs:
             echo "TAG=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
           else
             echo "TAG=${{ env.GIT_SHA }}" >> $GITHUB_ENV
+          fi
 
       - name: Build and push final Docker image
         uses: docker/build-push-action@v2
