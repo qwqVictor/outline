@@ -44,7 +44,7 @@ jobs:
 
       - name: downcase repo
         run: |
-          REPO="${{ github.actor }}/${{ github.repository }}"
+          REPO="${{ github.repository }}"
           echo "REPO=${REPO,,}" >> $GITHUB_ENV
 
       - name: Build and push final Docker image
