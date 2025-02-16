@@ -42,6 +42,11 @@ jobs:
             echo "TAG=${{ env.GIT_SHA }}" >> $GITHUB_ENV
           fi
 
+      - name: downcase repo
+        run: |
+          REPO="${{ github.actor }}/${{ github.repository }}"
+          echo "REPO=${REPO,,}" >> $GITHUB_ENV
+
       - name: Build and push final Docker image
         uses: docker/build-push-action@v2
         with:
@@ -49,4 +54,4 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.actor }}/${{ github.repository }}:${{ env.TAG }}
+            ghcr.io/${{ env.REPO }}:${{ env.TAG }}
