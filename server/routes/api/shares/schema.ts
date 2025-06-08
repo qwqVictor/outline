@@ -29,6 +29,7 @@ export type SharesInfoReq = z.infer<typeof SharesInfoSchema>;
 
 export const SharesListSchema = BaseSchema.extend({
   body: z.object({
+    query: z.string().optional(),
     sort: z
       .string()
       .refine((val) => Object.keys(Share.getAttributes()).includes(val), {
@@ -52,6 +53,7 @@ export const SharesUpdateSchema = BaseSchema.extend({
     includeChildDocuments: z.boolean().optional(),
     published: z.boolean().optional(),
     allowIndexing: z.boolean().optional(),
+    showLastUpdated: z.boolean().optional(),
     urlId: z
       .string()
       .regex(UrlHelper.SHARE_URL_SLUG_REGEX, {

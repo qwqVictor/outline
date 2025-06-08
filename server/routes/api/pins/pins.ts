@@ -33,9 +33,10 @@ router.post(
     authorize(user, "read", document);
 
     if (collectionId) {
-      const collection = await Collection.scope({
-        method: ["withMembership", user.id],
-      }).findByPk(collectionId, { transaction });
+      const collection = await Collection.findByPk(collectionId, {
+        userId: user.id,
+        transaction,
+      });
       authorize(user, "update", collection);
       authorize(user, "pin", document);
     } else {
@@ -58,11 +59,40 @@ router.post(
 );
 
 router.post(
+  "pins.info",
+  auth(),
+  validate(T.PinsInfoSchema),
+  async (ctx: APIContext<T.PinsInfoReq>) => {
+    const { user } = ctx.state.auth;
+    const { documentId, collectionId } = ctx.input.body;
+
+    const document = await Document.findByPk(documentId, { userId: user.id });
+    authorize(user, "read", document);
+
+    // There can be only one pin with these props.
+    const pin = await Pin.findOne({
+      where: {
+        documentId,
+        collectionId: collectionId ?? null,
+        createdById: user.id,
+        teamId: user.teamId,
+      },
+      rejectOnEmpty: true,
+    });
+
+    ctx.body = {
+      data: presentPin(pin),
+      policies: presentPolicies(user, [pin]),
+    };
+  }
+);
+
+router.post(
   "pins.list",
   auth(),
   validate(T.PinsListSchema),
   pagination(),
-  async (ctx: APIContext<T.PinsCreateReq>) => {
+  async (ctx: APIContext<T.PinsListReq>) => {
     const { collectionId } = ctx.input.body;
     const { user } = ctx.state.auth;
 
@@ -84,7 +114,7 @@ router.post(
       user.collectionIds(),
     ]);
 
-    const documents = await Document.defaultScopeWithUser(user.id).findAll({
+    const documents = await Document.withMembershipScope(user.id).findAll({
       where: {
         id: pins.map((pin) => pin.documentId),
         collectionId: collectionIds,

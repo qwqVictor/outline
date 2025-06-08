@@ -16,7 +16,7 @@ import DefaultCollectionInputSelect from "~/components/DefaultCollectionInputSel
 import Heading from "~/components/Heading";
 import Input from "~/components/Input";
 import InputColor from "~/components/InputColor";
-import InputSelect from "~/components/InputSelect";
+import { InputSelectNew, Option } from "~/components/InputSelectNew";
 import Scene from "~/components/Scene";
 import Switch from "~/components/Switch";
 import Text from "~/components/Text";
@@ -44,6 +44,7 @@ function Details() {
     team.preferences?.customTheme?.accentText
   );
   const [name, setName] = useState(team.name);
+  const [description, setDescription] = useState(team.description || "");
   const [subdomain, setSubdomain] = useState(team.subdomain);
   const [publicBranding, setPublicBranding] = useState(
     team.preferences?.publicBranding
@@ -64,6 +65,27 @@ function Details() {
     team.getPreference(TeamPreference.TocPosition) as TOCPosition
   );
 
+  const tocPositionOptions: Option[] = React.useMemo(
+    () =>
+      [
+        {
+          type: "item",
+          label: t("Left"),
+          value: TOCPosition.Left,
+        },
+        {
+          type: "item",
+          label: t("Right"),
+          value: TOCPosition.Right,
+        },
+      ] satisfies Option[],
+    [t]
+  );
+
+  const handleTocPositionChange = React.useCallback((position: string) => {
+    setTocPosition(position as TOCPosition);
+  }, []);
+
   const handleSubmit = React.useCallback(
     async (event?: React.SyntheticEvent) => {
       if (event) {
@@ -73,6 +95,7 @@ function Details() {
       try {
         await team.save({
           name,
+          description,
           subdomain,
           defaultCollectionId,
           preferences: {
@@ -87,7 +110,17 @@ function Details() {
         toast.error(err.message);
       }
     },
-    [team, name, subdomain, defaultCollectionId, publicBranding, customTheme, t]
+    [
+      tocPosition,
+      team,
+      name,
+      description,
+      subdomain,
+      defaultCollectionId,
+      publicBranding,
+      customTheme,
+      t,
+    ]
   );
 
   const handleNameChange = React.useCallback(
@@ -123,9 +156,9 @@ function Details() {
     });
   };
 
-  const onSelectCollection = React.useCallback(async (value: string) => {
-    const defaultCollectionId = value === "home" ? null : value;
-    setDefaultCollectionId(defaultCollectionId);
+  const onSelectCollection = React.useCallback((value: string) => {
+    const selectedValue = value === "home" ? null : value;
+    setDefaultCollectionId(selectedValue);
   }, []);
 
   const isValid = form.current?.checkValidity();
@@ -181,6 +214,19 @@ function Details() {
             />
           </SettingRow>
           <SettingRow
+            label={t("Description")}
+            name="description"
+            description={t("A short description of your workspace.")}
+          >
+            <Input
+              id="description"
+              value={description}
+              onChange={(ev: React.ChangeEvent<HTMLInputElement>) => {
+                setDescription(ev.target.value);
+              }}
+            />
+          </SettingRow>
+          <SettingRow
             label={t("Theme")}
             name="accent"
             description={
@@ -216,12 +262,12 @@ function Details() {
               flex
             />
           </SettingRow>
-          {team.avatarUrl && (
+          {(team.avatarUrl || team.description) && (
             <SettingRow
               name={TeamPreference.PublicBranding}
               label={t("Public branding")}
               description={t(
-                "Show your team’s logo on public pages like login and shared documents."
+                "Show your workspace logo, description, and branding on publicly shared pages."
               )}
             >
               <Switch
@@ -242,20 +288,13 @@ function Details() {
               "The side to display the table of contents in relation to the main content."
             )}
           >
-            <InputSelect
-              ariaLabel={t("Table of contents position")}
-              options={[
-                {
-                  label: t("Left"),
-                  value: TOCPosition.Left,
-                },
-                {
-                  label: t("Right"),
-                  value: TOCPosition.Right,
-                },
-              ]}
+            <InputSelectNew
+              options={tocPositionOptions}
               value={tocPosition}
-              onChange={(p: TOCPosition) => setTocPosition(p)}
+              onChange={handleTocPositionChange}
+              ariaLabel={t("Table of contents position")}
+              label={t("Table of contents position")}
+              hideLabel
             />
           </SettingRow>
 
@@ -298,7 +337,6 @@ function Details() {
             )}
           >
             <DefaultCollectionInputSelect
-              id="defaultCollectionId"
               onSelectCollection={onSelectCollection}
               defaultCollectionId={defaultCollectionId}
             />

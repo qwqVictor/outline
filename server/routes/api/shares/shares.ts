@@ -54,7 +54,12 @@ router.post(
       });
       authorize(user, "read", document);
 
-      const collection = await document.$get("collection");
+      const collection = document.collectionId
+        ? await Collection.findByPk(document.collectionId, {
+            userId: user.id,
+            includeDocumentStructure: true,
+          })
+        : undefined;
       const parentIds = collection?.getDocumentParents(documentId);
       const parentShare = parentIds
         ? await Share.scope({
@@ -98,9 +103,10 @@ router.post(
   pagination(),
   validate(T.SharesListSchema),
   async (ctx: APIContext<T.SharesListReq>) => {
-    const { sort, direction } = ctx.input.body;
+    const { sort, direction, query } = ctx.input.body;
     const { user } = ctx.state.auth;
     authorize(user, "listShares", user.team);
+    const collectionIds = await user.collectionIds();
 
     const where: WhereOptions<Share> = {
       teamId: user.teamId,
@@ -111,11 +117,20 @@ router.post(
       },
     };
 
+    const documentWhere: WhereOptions<Document> = {
+      teamId: user.teamId,
+      collectionId: collectionIds,
+    };
+
+    if (query) {
+      documentWhere.title = {
+        [Op.iLike]: `%${query}%`,
+      };
+    }
+
     if (user.isAdmin) {
       delete where.userId;
     }
-
-    const collectionIds = await user.collectionIds();
 
     const options: FindOptions = {
       where,
@@ -125,9 +140,7 @@ router.post(
           required: true,
           paranoid: true,
           as: "document",
-          where: {
-            collectionId: collectionIds,
-          },
+          where: documentWhere,
           include: [
             {
               model: Collection.scope({
@@ -222,8 +235,14 @@ router.post(
   validate(T.SharesUpdateSchema),
   transaction(),
   async (ctx: APIContext<T.SharesUpdateReq>) => {
-    const { id, includeChildDocuments, published, urlId, allowIndexing } =
-      ctx.input.body;
+    const {
+      id,
+      includeChildDocuments,
+      published,
+      urlId,
+      allowIndexing,
+      showLastUpdated,
+    } = ctx.input.body;
 
     const { user } = ctx.state.auth;
     authorize(user, "share", user.team);
@@ -252,6 +271,10 @@ router.post(
 
     if (allowIndexing !== undefined) {
       share.allowIndexing = allowIndexing;
+    }
+
+    if (showLastUpdated !== undefined) {
+      share.showLastUpdated = showLastUpdated;
     }
 
     await share.saveWithCtx(ctx);

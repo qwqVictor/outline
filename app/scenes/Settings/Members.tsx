@@ -1,7 +1,7 @@
 import { ColumnSort } from "@tanstack/react-table";
 import { observer } from "mobx-react";
 import { PlusIcon, UserIcon } from "outline-icons";
-import * as React from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { useHistory, useLocation } from "react-router-dom";
 import { toast } from "sonner";
@@ -9,7 +9,7 @@ import styled from "styled-components";
 import UsersStore, { queriedUsers } from "~/stores/UsersStore";
 import { Action } from "~/components/Actions";
 import Button from "~/components/Button";
-import Fade from "~/components/Fade";
+import { ConditionalFade } from "~/components/Fade";
 import Heading from "~/components/Heading";
 import InputSearch from "~/components/InputSearch";
 import Scene from "~/components/Scene";
@@ -22,7 +22,7 @@ import usePolicy from "~/hooks/usePolicy";
 import useQuery from "~/hooks/useQuery";
 import useStores from "~/hooks/useStores";
 import { useTableRequest } from "~/hooks/useTableRequest";
-import { PeopleTable } from "./components/PeopleTable";
+import { MembersTable } from "./components/MembersTable";
 import { StickyFilters } from "./components/StickyFilters";
 import UserRoleFilter from "./components/UserRoleFilter";
 import UserStatusFilter from "./components/UserStatusFilter";
@@ -37,9 +37,9 @@ function Members() {
   const { t } = useTranslation();
   const params = useQuery();
   const can = usePolicy(team);
-  const [query, setQuery] = React.useState("");
+  const [query, setQuery] = useState("");
 
-  const reqParams = React.useMemo(
+  const reqParams = useMemo(
     () => ({
       query: params.get("query") || undefined,
       filter: params.get("filter") || "active",
@@ -52,7 +52,7 @@ function Members() {
     [params]
   );
 
-  const sort: ColumnSort = React.useMemo(
+  const sort: ColumnSort = useMemo(
     () => ({
       id: reqParams.sort,
       desc: reqParams.direction === "DESC",
@@ -72,7 +72,7 @@ function Members() {
     reqParams,
   });
 
-  const updateParams = React.useCallback(
+  const updateParams = useCallback(
     (name: string, value: string) => {
       if (value) {
         params.set(name, value);
@@ -88,28 +88,28 @@ function Members() {
     [params, history, location.pathname]
   );
 
-  const handleStatusFilter = React.useCallback(
+  const handleStatusFilter = useCallback(
     (status) => updateParams("filter", status),
     [updateParams]
   );
 
-  const handleRoleFilter = React.useCallback(
+  const handleRoleFilter = useCallback(
     (role) => updateParams("role", role),
     [updateParams]
   );
 
-  const handleSearch = React.useCallback((event) => {
+  const handleSearch = useCallback((event) => {
     const { value } = event.target;
     setQuery(value);
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (error) {
       toast.error(t("Could not load members"));
     }
   }, [t, error]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const timeout = setTimeout(() => updateParams("query", query), 250);
     return () => clearTimeout(timeout);
   }, [query, updateParams]);
@@ -163,8 +163,8 @@ function Members() {
           onSelect={handleRoleFilter}
         />
       </StickyFilters>
-      <Fade>
-        <PeopleTable
+      <ConditionalFade animate={!data}>
+        <MembersTable
           data={data ?? []}
           sort={sort}
           canManage={can.update}
@@ -174,7 +174,7 @@ function Members() {
             fetchNext: next,
           }}
         />
-      </Fade>
+      </ConditionalFade>
     </Scene>
   );
 }
@@ -194,7 +194,7 @@ function getFilteredUsers({
 
   switch (filter) {
     case "all":
-      filteredUsers = users.orderedData;
+      filteredUsers = users.all;
       break;
     case "suspended":
       filteredUsers = users.suspended;

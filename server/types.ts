@@ -10,6 +10,7 @@ import {
   JSONValue,
   UnfurlResourceType,
   ProsemirrorData,
+  UnfurlResponse,
 } from "@shared/types";
 import { BaseSchema } from "@server/routes/api/schema";
 import { AccountProvisionerResult } from "./commands/accountProvisioner";
@@ -35,11 +36,14 @@ import type {
   Notification,
   Share,
   GroupMembership,
+  Import,
+  OAuthClient,
 } from "./models";
 
 export enum AuthenticationType {
   API = "api",
   APP = "app",
+  OAUTH = "oauth",
 }
 
 export type AuthenticationResult = AccountProvisionerResult & {
@@ -48,7 +52,7 @@ export type AuthenticationResult = AccountProvisionerResult & {
 
 export type Authentication = {
   user: User;
-  token?: string;
+  token: string;
   type?: AuthenticationType;
 };
 
@@ -182,7 +186,6 @@ export type DocumentEvent = BaseEvent<Document> &
         name:
           | "documents.create"
           | "documents.publish"
-          | "documents.unpublish"
           | "documents.delete"
           | "documents.permanent_delete"
           | "documents.archive"
@@ -193,6 +196,11 @@ export type DocumentEvent = BaseEvent<Document> &
           title: string;
           source?: "import";
         };
+      }
+    | {
+        name: "documents.unpublish";
+        documentId: string;
+        collectionId: string;
       }
     | {
         name: "documents.unarchive";
@@ -423,6 +431,7 @@ export type SubscriptionEvent = BaseEvent<Subscription> & {
   modelId: string;
   userId: string;
   documentId: string | null;
+  collectionId: string | null;
 };
 
 export type ViewEvent = BaseEvent<View> & {
@@ -459,6 +468,22 @@ export type NotificationEvent = BaseEvent<Notification> & {
   commentId?: string;
   documentId?: string;
   collectionId?: string;
+  membershipId?: string;
+};
+
+export type OAuthClientEvent = BaseEvent<OAuthClient> & {
+  name: "oauthClients.create" | "oauthClients.update" | "oauthClients.delete";
+  modelId: string;
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type ImportEvent = BaseEvent<Import<any>> & {
+  name:
+    | "imports.create"
+    | "imports.update"
+    | "imports.processed"
+    | "imports.delete";
+  modelId: string;
 };
 
 export type Event =
@@ -486,7 +511,9 @@ export type Event =
   | ViewEvent
   | WebhookSubscriptionEvent
   | NotificationEvent
-  | EmptyTrashEvent;
+  | OAuthClientEvent
+  | EmptyTrashEvent
+  | ImportEvent;
 
 export type NotificationMetadata = {
   notificationId?: string;
@@ -516,7 +543,7 @@ export type DocumentJSONExport = {
   emoji?: string | null;
   icon: string | null;
   color: string | null;
-  data: Record<string, any>;
+  data: ProsemirrorData;
   createdById: string;
   createdByName: string;
   createdByEmail: string | null;
@@ -543,7 +570,7 @@ export type CollectionJSONExport = {
     urlId: string;
     name: string;
     data?: ProsemirrorData | null;
-    description?: ProsemirrorData | null;
+    description?: string | null;
     permission?: CollectionPermission | null;
     color?: string | null;
     icon?: string | null;
@@ -558,12 +585,26 @@ export type CollectionJSONExport = {
   };
 };
 
-export type Unfurl = { [x: string]: JSONValue; type: UnfurlResourceType };
+export type UnfurlIssueOrPR =
+  | UnfurlResponse[UnfurlResourceType.Issue]
+  | UnfurlResponse[UnfurlResourceType.PR];
+
+export type Unfurl =
+  | UnfurlIssueOrPR
+  | {
+      type: Exclude<
+        UnfurlResourceType,
+        UnfurlResourceType.Issue | UnfurlResourceType.PR
+      >;
+      [x: string]: JSONValue;
+    };
+
+export type UnfurlError = { error: string };
 
 export type UnfurlSignature = (
   url: string,
   actor?: User
-) => Promise<Unfurl | void>;
+) => Promise<Unfurl | UnfurlError | undefined>;
 
 export type UninstallSignature = (integration: Integration) => Promise<void>;
 

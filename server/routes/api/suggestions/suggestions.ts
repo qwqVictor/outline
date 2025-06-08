@@ -1,6 +1,7 @@
 import Router from "koa-router";
 import { Op } from "sequelize";
 import { Sequelize } from "sequelize-typescript";
+import { StatusFilter } from "@shared/types";
 import auth from "@server/middlewares/authentication";
 import validate from "@server/middlewares/validate";
 import { User } from "@server/models";
@@ -23,11 +24,12 @@ router.post(
     const { offset, limit } = ctx.state.pagination;
     const actor = ctx.state.auth.user;
 
-    const [documents, users] = await Promise.all([
+    const [documents, users, collections] = await Promise.all([
       SearchHelper.searchTitlesForUser(actor, {
         query,
         offset,
         limit,
+        statusFilter: [StatusFilter.Published],
       }),
       User.findAll({
         where: {
@@ -53,6 +55,7 @@ router.post(
         offset,
         limit,
       }),
+      SearchHelper.searchCollectionsForUser(actor, { query, offset, limit }),
     ]);
 
     ctx.body = {
@@ -67,6 +70,7 @@ router.post(
             includeDetails: !!can(actor, "readDetails", user),
           })
         ),
+        collections,
       },
     };
   }

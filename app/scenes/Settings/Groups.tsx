@@ -2,7 +2,7 @@ import { ColumnSort } from "@tanstack/react-table";
 import deburr from "lodash/deburr";
 import { observer } from "mobx-react";
 import { PlusIcon, GroupIcon } from "outline-icons";
-import * as React from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useTranslation, Trans } from "react-i18next";
 import { useHistory, useLocation } from "react-router-dom";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import Group from "~/models/Group";
 import { Action } from "~/components/Actions";
 import Button from "~/components/Button";
 import Empty from "~/components/Empty";
+import { ConditionalFade } from "~/components/Fade";
 import Heading from "~/components/Heading";
 import InputSearch from "~/components/InputSearch";
 import Scene from "~/components/Scene";
@@ -42,9 +43,9 @@ function Groups() {
   const history = useHistory();
   const location = useLocation();
   const params = useQuery();
-  const [query, setQuery] = React.useState("");
+  const [query, setQuery] = useState("");
 
-  const reqParams = React.useMemo(
+  const reqParams = useMemo(
     () => ({
       query: params.get("query") || undefined,
       sort: params.get("sort") || "name",
@@ -55,7 +56,7 @@ function Groups() {
     [params]
   );
 
-  const sort: ColumnSort = React.useMemo(
+  const sort: ColumnSort = useMemo(
     () => ({
       id: reqParams.sort,
       desc: reqParams.direction === "DESC",
@@ -72,7 +73,7 @@ function Groups() {
 
   const isEmpty = !loading && !groups.orderedData.length;
 
-  const updateQuery = React.useCallback(
+  const updateQuery = useCallback(
     (value: string) => {
       if (value) {
         params.set("query", value);
@@ -88,25 +89,25 @@ function Groups() {
     [params, history, location.pathname]
   );
 
-  const handleSearch = React.useCallback((event) => {
+  const handleSearch = useCallback((event) => {
     const { value } = event.target;
     setQuery(value);
   }, []);
 
-  const handleNewGroup = React.useCallback(() => {
+  const handleNewGroup = useCallback(() => {
     dialogs.openModal({
       title: t("Create a group"),
       content: <CreateGroupDialog />,
     });
   }, [t, dialogs]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (error) {
       toast.error(t("Could not load groups"));
     }
   }, [t, error]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const timeout = setTimeout(() => updateQuery(query), 250);
     return () => clearTimeout(timeout);
   }, [query, updateQuery]);
@@ -149,15 +150,17 @@ function Groups() {
               onChange={handleSearch}
             />
           </StickyFilters>
-          <GroupsTable
-            data={data ?? []}
-            sort={sort}
-            loading={loading}
-            page={{
-              hasNext: !!next,
-              fetchNext: next,
-            }}
-          />
+          <ConditionalFade animate={!data}>
+            <GroupsTable
+              data={data ?? []}
+              sort={sort}
+              loading={loading}
+              page={{
+                hasNext: !!next,
+                fetchNext: next,
+              }}
+            />
+          </ConditionalFade>
         </>
       )}
     </Scene>

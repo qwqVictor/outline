@@ -182,24 +182,44 @@ export default class SearchHelper {
       },
     ];
 
-    return Document.scope([
-      "withDrafts",
-      {
-        method: ["withViews", user.id],
-      },
-      {
-        method: ["withCollectionPermissions", user.id],
-      },
-      {
-        method: ["withMembership", user.id],
-      },
-    ]).findAll({
+    return Document.withMembershipScope(user.id, {
+      includeDrafts: true,
+    }).findAll({
       where,
       subQuery: false,
       order: [["updatedAt", "DESC"]],
       include,
       offset,
       limit,
+    });
+  }
+
+  public static async searchCollectionsForUser(
+    user: User,
+    options: SearchOptions = {}
+  ): Promise<Collection[]> {
+    const { limit = 15, offset = 0, query } = options;
+
+    const collectionIds = await user.collectionIds();
+
+    return Collection.findAll({
+      where: {
+        [Op.and]: query
+          ? {
+              [Op.or]: [
+                Sequelize.literal(
+                  `unaccent(LOWER(name)) like unaccent(LOWER(:query))`
+                ),
+              ],
+            }
+          : {},
+        id: collectionIds,
+        teamId: user.teamId,
+      },
+      order: [["name", "ASC"]],
+      replacements: { query: `%${query}%` },
+      limit,
+      offset,
     });
   }
 
@@ -244,18 +264,7 @@ export default class SearchHelper {
 
       // Final query to get associated document data
       const [documents, count] = await Promise.all([
-        Document.scope([
-          "withDrafts",
-          {
-            method: ["withViews", user.id],
-          },
-          {
-            method: ["withCollectionPermissions", user.id],
-          },
-          {
-            method: ["withMembership", user.id],
-          },
-        ]).findAll({
+        Document.withMembershipScope(user.id, { includeDrafts: true }).findAll({
           where: {
             teamId: user.teamId,
             id: map(results, "id"),
@@ -467,7 +476,7 @@ export default class SearchHelper {
     if (options.query) {
       // find words that look like urls, these should be treated separately as the postgres full-text
       // index will generally not match them.
-      const likelyUrls = getUrls(options.query);
+      let likelyUrls = getUrls(options.query);
 
       // remove likely urls, and escape the rest of the query.
       let limitedQuery = this.escapeQuery(
@@ -476,6 +485,9 @@ export default class SearchHelper {
           .slice(0, this.maxQueryLength)
           .trim()
       );
+
+      // Escape the URLs
+      likelyUrls = likelyUrls.map((url) => this.escapeQuery(url));
 
       // Extract quoted queries and add them to the where clause, up to a maximum of 3 total.
       const quotedQueries = Array.from(limitedQuery.matchAll(/"([^"]*)"/g)).map(
@@ -601,6 +613,8 @@ export default class SearchHelper {
   }
 
   private static removeStopWords(query: string): string {
+    // Based on:
+    // https://github.com/postgres/postgres/blob/fc0d0ce978752493868496be6558fa17b7c4c3cf/src/backend/snowball/stopwords/english.stop
     const stopwords = [
       "i",
       "me",
@@ -665,7 +679,6 @@ export default class SearchHelper {
       "because",
       "as",
       "until",
-      "while",
       "of",
       "at",
       "by",
@@ -673,7 +686,6 @@ export default class SearchHelper {
       "with",
       "about",
       "against",
-      "between",
       "into",
       "through",
       "during",
@@ -681,18 +693,12 @@ export default class SearchHelper {
       "after",
       "above",
       "below",
-      "to",
       "from",
-      "up",
       "down",
-      "in",
-      "out",
-      "on",
       "off",
       "over",
       "under",
       "again",
-      "further",
       "then",
       "once",
       "here",
@@ -700,22 +706,15 @@ export default class SearchHelper {
       "when",
       "where",
       "why",
-      "how",
-      "all",
       "any",
       "both",
       "each",
       "few",
-      "more",
-      "most",
       "other",
       "some",
       "such",
-      "no",
       "nor",
-      "not",
       "only",
-      "own",
       "same",
       "so",
       "than",
@@ -723,12 +722,8 @@ export default class SearchHelper {
       "very",
       "s",
       "t",
-      "can",
-      "will",
-      "just",
       "don",
       "should",
-      "now",
     ];
     return query
       .split(" ")

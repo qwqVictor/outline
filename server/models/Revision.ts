@@ -13,12 +13,13 @@ import {
   Table,
   IsNumeric,
   Length as SimpleLength,
+  BeforeDestroy,
 } from "sequelize-typescript";
 import type { ProsemirrorData } from "@shared/types";
-import { DocumentValidation } from "@shared/validations";
+import { DocumentValidation, RevisionValidation } from "@shared/validations";
 import Document from "./Document";
 import User from "./User";
-import IdModel from "./base/IdModel";
+import ParanoidModel from "./base/ParanoidModel";
 import Fix from "./decorators/Fix";
 import IsHexColor from "./validators/IsHexColor";
 import Length from "./validators/Length";
@@ -34,7 +35,7 @@ import Length from "./validators/Length";
 }))
 @Table({ tableName: "revisions", modelName: "revision" })
 @Fix
-class Revision extends IdModel<
+class Revision extends ParanoidModel<
   InferAttributes<Revision>,
   Partial<InferCreationAttributes<Revision>>
 > {
@@ -42,6 +43,7 @@ class Revision extends IdModel<
   @Column(DataType.SMALLINT)
   version?: number | null;
 
+  /** The editor version at the time of the revision */
   @SimpleLength({
     max: 255,
     msg: `editorVersion must be 255 characters or less`,
@@ -49,6 +51,7 @@ class Revision extends IdModel<
   @Column
   editorVersion: string;
 
+  /** The document title at the time of the revision */
   @Length({
     max: DocumentValidation.maxTitleLength,
     msg: `Revision title must be ${DocumentValidation.maxTitleLength} characters or less`,
@@ -56,22 +59,29 @@ class Revision extends IdModel<
   @Column
   title: string;
 
+  /** An optional name for the revision */
+  @Length({
+    max: RevisionValidation.maxNameLength,
+    msg: `Revision name must be ${RevisionValidation.maxNameLength} characters or less`,
+  })
+  @Column
+  name: string | null;
+
   /**
    * The content of the revision as Markdown.
    *
-   * @deprecated Use `content` instead, or `DocumentHelper.toMarkdown` if exporting lossy markdown.
-   * This column will be removed in a future migration.
+   * @deprecated Use `content` instead, or `DocumentHelper.toMarkdown` if
+   * exporting lossy markdown. This column will be removed in a future migration
+   * and is no longer being written.
    */
   @Column(DataType.TEXT)
-  text: string;
+  text: string | null;
 
-  /**
-   * The content of the revision as JSON.
-   */
+  /** The content of the revision as JSON. */
   @Column(DataType.JSONB)
   content: ProsemirrorData | null;
 
-  /** An icon to use as the document icon. */
+  /** The icon at the time of the revision. */
   @Length({
     max: 50,
     msg: `icon must be 50 characters or less`,
@@ -79,7 +89,7 @@ class Revision extends IdModel<
   @Column
   icon: string | null;
 
-  /** The color of the icon. */
+  /** The color at the time of the revision. */
   @IsHexColor
   @Column
   color: string | null;
@@ -99,6 +109,15 @@ class Revision extends IdModel<
   @ForeignKey(() => User)
   @Column(DataType.UUID)
   userId: string;
+
+  // hooks
+
+  @BeforeDestroy
+  static async clearData(model: Revision) {
+    model.content = null;
+    model.text = null;
+    model.title = "";
+  }
 
   // static methods
 
@@ -126,7 +145,6 @@ class Revision extends IdModel<
   static buildFromDocument(document: Document) {
     return this.build({
       title: document.title,
-      text: document.text,
       icon: document.icon,
       color: document.color,
       content: document.content,

@@ -1,7 +1,7 @@
 import deburr from "lodash/deburr";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
-import { useMenuState, MenuButton } from "reakit/Menu";
+import { MenuButton } from "reakit/Menu";
 import styled from "styled-components";
 import { s } from "@shared/styles";
 import type { FetchPageParams } from "~/stores/base/Store";
@@ -9,6 +9,7 @@ import Button, { Inner } from "~/components/Button";
 import ContextMenu from "~/components/ContextMenu";
 import MenuItem from "~/components/ContextMenu/MenuItem";
 import Text from "~/components/Text";
+import { useMenuState } from "~/hooks/useMenuState";
 import Input, { NativeInput, Outline } from "./Input";
 import PaginatedList, { PaginatedItem } from "./PaginatedList";
 
@@ -23,7 +24,6 @@ type Props = {
   options: TFilterOption[];
   selectedKeys: (string | null | undefined)[];
   defaultLabel?: string;
-  selectedPrefix?: string;
   className?: string;
   onSelect: (key: string | null | undefined) => void;
   showFilter?: boolean;
@@ -35,7 +35,6 @@ const FilterOptions = ({
   options,
   selectedKeys = [],
   defaultLabel = "Filter options",
-  selectedPrefix = "",
   className,
   onSelect,
   showFilter,
@@ -54,13 +53,11 @@ const FilterOptions = ({
   const [query, setQuery] = React.useState("");
 
   const selectedLabel = selectedItems.length
-    ? selectedItems
-        .map((selected) => `${selectedPrefix} ${selected.label}`)
-        .join(", ")
+    ? selectedItems.map((selected) => selected.label).join(", ")
     : "";
 
   const renderItem = React.useCallback(
-    (option: TFilterOption) => (
+    (option) => (
       <MenuItem
         key={option.key}
         onClick={() => {
@@ -70,7 +67,7 @@ const FilterOptions = ({
         selected={selectedKeys.includes(option.key)}
         {...menu}
       >
-        {option.icon && <Icon>{option.icon}</Icon>}
+        {option.icon}
         {option.note ? (
           <LabelWithNote>
             {option.label}
@@ -163,16 +160,22 @@ const FilterOptions = ({
   const showFilterInput = showFilter || options.length > 10;
 
   return (
-    <div>
+    <>
       <MenuButton {...menu}>
         {(props) => (
-          <StyledButton {...props} className={className} neutral disclosure>
+          <StyledButton
+            {...props}
+            className={className}
+            icon={selectedItems[0]?.key && selectedItems[0]?.icon}
+            neutral
+            disclosure
+          >
             {selectedItems.length ? selectedLabel : defaultLabel}
           </StyledButton>
         )}
       </MenuButton>
       <ContextMenu aria-label={defaultLabel} minHeight={66} {...menu}>
-        <PaginatedList
+        <PaginatedList<TFilterOption>
           listRef={listRef}
           options={{ query, ...fetchQueryOptions }}
           items={filteredOptions}
@@ -193,7 +196,7 @@ const FilterOptions = ({
           />
         )}
       </ContextMenu>
-    </div>
+    </>
   );
 };
 
@@ -231,6 +234,7 @@ const SearchInput = styled(Input)`
     border-radius: 0;
     border-bottom: 1px solid ${s("divider")};
     background: ${s("menuBackground")};
+    margin: 0;
   }
 
   ${NativeInput} {
@@ -267,15 +271,9 @@ export const StyledButton = styled(Button)`
   }
 
   ${Inner} {
-    line-height: 24px;
+    line-height: 28px;
     min-height: auto;
   }
-`;
-
-const Icon = styled.div`
-  margin-right: 8px;
-  width: 18px;
-  height: 18px;
 `;
 
 export default FilterOptions;

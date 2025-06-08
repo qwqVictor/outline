@@ -17,6 +17,7 @@ import {
   RateLimitExceededError,
   RequestError,
   ServiceUnavailableError,
+  UnprocessableEntityError,
   UpdateRequiredError,
 } from "./errors";
 
@@ -126,7 +127,7 @@ class ApiClient {
           cache: "no-cache",
         }
       );
-    } catch (err) {
+    } catch (_err) {
       if (window.navigator.onLine) {
         throw new NetworkError("A network error occurred, try again?");
       } else {
@@ -212,6 +213,10 @@ class ApiClient {
 
     if (response.status === 503) {
       throw new ServiceUnavailableError(error.message);
+    }
+
+    if (response.status === 422) {
+      throw new UnprocessableEntityError(error.message);
     }
 
     if (response.status === 429) {

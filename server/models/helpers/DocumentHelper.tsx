@@ -104,7 +104,7 @@ export class DocumentHelper {
     } else if (document instanceof Collection) {
       doc = parser.parse(document.description ?? "");
     } else {
-      doc = parser.parse(document.text);
+      doc = parser.parse(document.text ?? "");
     }
 
     if (doc && options?.signedUrls && options?.teamId) {
@@ -147,10 +147,15 @@ export class DocumentHelper {
    * Returns the document as Markdown. This is a lossy conversion and should only be used for export.
    *
    * @param document The document or revision to convert
+   * @param options Options for the conversion
    * @returns The document title and content as a Markdown string
    */
   static toMarkdown(
-    document: Document | Revision | Collection | ProsemirrorData
+    document: Document | Revision | Collection | ProsemirrorData,
+    options?: {
+      /** Whether to include the document title (default: true) */
+      includeTitle?: boolean;
+    }
   ) {
     const text = serializer
       .serialize(DocumentHelper.toProsemirror(document))
@@ -165,7 +170,10 @@ export class DocumentHelper {
       return text;
     }
 
-    if (document instanceof Document || document instanceof Revision) {
+    if (
+      (document instanceof Document || document instanceof Revision) &&
+      options?.includeTitle !== false
+    ) {
       const iconType = determineIconType(document.icon);
 
       const title = `${iconType === IconType.Emoji ? document.icon + " " : ""}${

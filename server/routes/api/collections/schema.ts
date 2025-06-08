@@ -43,6 +43,7 @@ export const CollectionsCreateSchema = BaseSchema.extend({
         message: `Must be ${ValidateIndex.maxLength} or fewer characters long`,
       })
       .optional(),
+    commenting: z.boolean().nullish(),
   }),
 });
 
@@ -170,6 +171,7 @@ export const CollectionsUpdateSchema = BaseSchema.extend({
       })
       .optional(),
     sharing: z.boolean().optional(),
+    commenting: z.boolean().nullish(),
   }),
 });
 
@@ -178,6 +180,9 @@ export type CollectionsUpdateReq = z.infer<typeof CollectionsUpdateSchema>;
 export const CollectionsListSchema = BaseSchema.extend({
   body: z.object({
     includeListOnly: z.boolean().default(false),
+
+    query: z.string().optional(),
+
     /** Collection statuses to include in results */
     statusFilter: z.nativeEnum(CollectionStatusFilter).array().optional(),
   }),

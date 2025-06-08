@@ -23,15 +23,13 @@ import NotificationListItem from "./NotificationListItem";
 type Props = {
   /** Callback when the notification panel wants to close. */
   onRequestClose: () => void;
-  /** Whether the panel is open or not. */
-  isOpen: boolean;
 };
 
 /**
  * A panel containing a list of notifications and controls to manage them.
  */
 function Notifications(
-  { onRequestClose, isOpen }: Props,
+  { onRequestClose }: Props,
   ref: React.RefObject<HTMLDivElement>
 ) {
   const context = useActionContext();
@@ -47,6 +45,15 @@ function Notifications(
       void Desktop.bridge.setNotificationCount(
         notifications.approximateUnreadCount
       );
+    }
+
+    // PWA badging
+    if ("setAppBadge" in navigator) {
+      if (notifications.approximateUnreadCount) {
+        void navigator.setAppBadge(notifications.approximateUnreadCount);
+      } else {
+        void navigator.clearAppBadge();
+      }
     }
   }, [notifications.approximateUnreadCount]);
 
@@ -70,11 +77,11 @@ function Notifications(
         </Header>
         <React.Suspense fallback={null}>
           <Scrollable ref={ref} flex topShadow>
-            <PaginatedList
+            <PaginatedList<Notification>
               fetch={notifications.fetchPage}
               options={{ archived: false }}
-              items={isOpen ? notifications.orderedData : undefined}
-              renderItem={(item: Notification) => (
+              items={notifications.orderedData}
+              renderItem={(item) => (
                 <NotificationListItem
                   key={item.id}
                   notification={item}

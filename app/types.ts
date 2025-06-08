@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/ban-types */
 import { Location, LocationDescriptor } from "history";
 import { TFunction } from "i18next";
 import {
@@ -27,6 +26,7 @@ export type MenuItemButton = {
   selected?: boolean;
   disabled?: boolean;
   icon?: React.ReactNode;
+  tooltip?: React.ReactChild;
 };
 
 export type MenuItemWithChildren = {
@@ -176,10 +176,10 @@ export type WebsocketEntityDeletedEvent = {
 };
 
 export type WebsocketEntitiesEvent = {
-  fetchIfMissing?: boolean;
   documentIds: { id: string; updatedAt?: string }[];
   collectionIds: { id: string; updatedAt?: string }[];
   groupIds: { id: string; updatedAt?: string }[];
+  invalidatedPolicies: string[];
   teamIds: string[];
   event: string;
 };
@@ -205,8 +205,31 @@ export type WebsocketEvent =
   | WebsocketEntitiesEvent
   | WebsocketCommentReactionEvent;
 
+type CursorPosition = {
+  type: {
+    client: number;
+    clock: number;
+  };
+  tname: string | null;
+  item: {
+    client: number;
+    clock: number;
+  };
+  assoc: number;
+};
+
+type Cursor = {
+  anchor: CursorPosition;
+  head: CursorPosition;
+};
+
 export type AwarenessChangeEvent = {
-  states: { user?: { id: string }; cursor: any; scrollY: number | undefined }[];
+  states: {
+    clientId: number;
+    user?: { id: string };
+    cursor: Cursor;
+    scrollY: number | undefined;
+  }[];
 };
 
 export const EmptySelectValue = "__empty__";

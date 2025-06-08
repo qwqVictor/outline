@@ -1,9 +1,9 @@
 import compact from "lodash/compact";
-import * as React from "react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { unicodeCLDRtoBCP47 } from "@shared/utils/date";
 import Share from "~/models/Share";
-import { Avatar } from "~/components/Avatar";
+import { Avatar, AvatarSize } from "~/components/Avatar";
 import Flex from "~/components/Flex";
 import { HEADER_HEIGHT } from "~/components/Header";
 import {
@@ -27,7 +27,7 @@ export function SharesTable({ data, canManage, ...rest }: Props) {
   const language = useUserLocale();
   const hasDomain = data.some((share) => share.domain);
 
-  const columns = React.useMemo<TableColumn<Share>[]>(
+  const columns = useMemo<TableColumn<Share>[]>(
     () =>
       compact<TableColumn<Share>>([
         {
@@ -46,10 +46,10 @@ export function SharesTable({ data, canManage, ...rest }: Props) {
           accessor: (share) => share.createdBy,
           sortable: false,
           component: (share) => (
-            <Flex align="center" gap={4}>
+            <Flex align="center" gap={8}>
               {share.createdBy && (
                 <>
-                  <Avatar model={share.createdBy} />
+                  <Avatar model={share.createdBy} size={AvatarSize.Small} />
                   {share.createdBy.name}
                 </>
               )}

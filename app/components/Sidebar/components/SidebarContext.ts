@@ -1,17 +1,18 @@
-import * as React from "react";
+import { createContext, useContext } from "react";
 import Document from "~/models/Document";
 import User from "~/models/User";
 
 export type SidebarContextType =
   | "collections"
   | "shared"
+  | "archive"
   | `group-${string}`
   | `starred-${string}`
   | undefined;
 
-const SidebarContext = React.createContext<SidebarContextType>(undefined);
+const SidebarContext = createContext<SidebarContextType>(undefined);
 
-export const useSidebarContext = () => React.useContext(SidebarContext);
+export const useSidebarContext = () => useContext(SidebarContext);
 
 export const groupSidebarContext = (groupId: string): SidebarContextType =>
   `group-${groupId}`;
@@ -41,7 +42,7 @@ export const determineSidebarContext = ({
   }
 
   if (document.collection) {
-    return "collections";
+    return document.collection.isArchived ? "archive" : "collections";
   } else if (
     user.documentMemberships.find((m) => m.documentId === document.id)
   ) {

@@ -4,6 +4,8 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { mergeRefs } from "react-merge-refs";
 import { useHistory, useRouteMatch } from "react-router-dom";
+import styled from "styled-components";
+import Text from "@shared/components/Text";
 import { richExtensions, withComments } from "@shared/editor/nodes";
 import { TeamPreference } from "@shared/types";
 import { colorPalette } from "@shared/utils/collections";
@@ -13,6 +15,7 @@ import { RefHandle } from "~/components/ContentEditable";
 import { useDocumentContext } from "~/components/DocumentContext";
 import Editor, { Props as EditorProps } from "~/components/Editor";
 import Flex from "~/components/Flex";
+import Time from "~/components/Time";
 import { withUIExtensions } from "~/editor/extensions";
 import useCurrentTeam from "~/hooks/useCurrentTeam";
 import useCurrentUser from "~/hooks/useCurrentUser";
@@ -57,7 +60,7 @@ function DocumentEditor(props: Props, ref: React.RefObject<any>) {
   const { t } = useTranslation();
   const match = useRouteMatch();
   const focusedComment = useFocusedComment();
-  const { ui, comments } = useStores();
+  const { ui, comments, collections } = useStores();
   const user = useCurrentUser({ rejectOnEmpty: false });
   const team = useCurrentTeam({ rejectOnEmpty: false });
   const history = useHistory();
@@ -75,6 +78,15 @@ function DocumentEditor(props: Props, ref: React.RefObject<any>) {
     ...rest
   } = props;
   const can = usePolicy(document);
+
+  // Check collection-level commenting setting
+  const collection = document.collectionId
+    ? collections.get(document.collectionId)
+    : undefined;
+  const collectionCommentingEnabled =
+    collection?.canCreateComment ??
+    !!team?.getPreference(TeamPreference.Commenting);
+
   const iconColor = document.color ?? (last(colorPalette) as string);
   const childRef = React.useRef<HTMLDivElement>(null);
   const focusAtStart = React.useCallback(() => {
@@ -220,16 +232,26 @@ function DocumentEditor(props: Props, ref: React.RefObject<any>) {
         onBlur={handleBlur}
         placeholder={t("Untitled")}
       />
-      {!shareId && (
+      {shareId ? (
+        document.updatedAt ? (
+          <SharedMeta type="tertiary">
+            {t("Last updated")} <Time dateTime={document.updatedAt} addSuffix />
+          </SharedMeta>
+        ) : null
+      ) : (
         <DocumentMeta
           document={document}
-          to={{
-            pathname:
-              match.path === matchDocumentHistory
-                ? documentPath(document)
-                : documentHistoryPath(document),
-            state: { sidebarContext },
-          }}
+          to={
+            shareId
+              ? undefined
+              : {
+                  pathname:
+                    match.path === matchDocumentHistory
+                      ? documentPath(document)
+                      : documentHistoryPath(document),
+                  state: { sidebarContext },
+                }
+          }
           rtl={direction === "rtl"}
         />
       )}
@@ -244,12 +266,12 @@ function DocumentEditor(props: Props, ref: React.RefObject<any>) {
         focusedCommentId={focusedComment?.id}
         onClickCommentMark={handleClickComment}
         onCreateCommentMark={
-          team?.getPreference(TeamPreference.Commenting) && can.comment
+          collectionCommentingEnabled && can.comment
             ? handleDraftComment
             : undefined
         }
         onDeleteCommentMark={
-          team?.getPreference(TeamPreference.Commenting) && can.comment
+          collectionCommentingEnabled && can.comment
             ? handleRemoveComment
             : undefined
         }
@@ -264,5 +286,10 @@ function DocumentEditor(props: Props, ref: React.RefObject<any>) {
     </Flex>
   );
 }
+
+const SharedMeta = styled(Text)`
+  margin: -12px 0 2em 0;
+  font-size: 14px;
+`;
 
 export default observer(React.forwardRef(DocumentEditor));

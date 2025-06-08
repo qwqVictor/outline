@@ -1,18 +1,24 @@
+import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import capitalize from "lodash/capitalize";
 import isEmpty from "lodash/isEmpty";
-import isUndefined from "lodash/isUndefined";
+import noop from "lodash/noop";
 import { observer } from "mobx-react";
-import { EditIcon, InputIcon, RestoreIcon, SearchIcon } from "outline-icons";
+import {
+  EditIcon,
+  InputIcon,
+  RestoreIcon,
+  SearchIcon,
+  ShapesIcon,
+} from "outline-icons";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { useHistory } from "react-router-dom";
-import { useMenuState, MenuButton, MenuButtonHTMLProps } from "reakit/Menu";
-import { VisuallyHidden } from "reakit/VisuallyHidden";
+import { MenuButton, MenuButtonHTMLProps } from "reakit/Menu";
 import { toast } from "sonner";
 import styled from "styled-components";
 import breakpoint from "styled-components-breakpoint";
 import { s } from "@shared/styles";
-import { UserPreference } from "@shared/types";
+import { SubscriptionType, UserPreference } from "@shared/types";
 import { getEventFiles } from "@shared/utils/files";
 import Document from "~/models/Document";
 import ContextMenu from "~/components/ContextMenu";
@@ -53,11 +59,13 @@ import {
 import useActionContext from "~/hooks/useActionContext";
 import useBoolean from "~/hooks/useBoolean";
 import useCurrentUser from "~/hooks/useCurrentUser";
+import { useMenuState } from "~/hooks/useMenuState";
 import useMobile from "~/hooks/useMobile";
 import usePolicy from "~/hooks/usePolicy";
 import useRequest from "~/hooks/useRequest";
 import useStores from "~/hooks/useStores";
-import { MenuItem } from "~/types";
+import { useTemplateMenuItems } from "~/hooks/useTemplateMenuItems";
+import { MenuItem, MenuItemButton } from "~/types";
 import { documentEditPath } from "~/utils/routeHelpers";
 import { MenuContext, useMenuContext } from "./MenuContext";
 
@@ -76,6 +84,7 @@ type Props = {
   label?: (props: MenuButtonHTMLProps) => React.ReactNode;
   /** Invoked when the "Find and replace" menu item is clicked */
   onFindAndReplace?: () => void;
+  onSelectTemplate?: (template: Document) => void;
   /** Invoked when the "Rename" menu item is clicked */
   onRename?: () => void;
   /** Invoked when menu is opened */
@@ -92,22 +101,38 @@ type MenuTriggerProps = {
 const MenuTrigger: React.FC<MenuTriggerProps> = ({ label, onTrigger }) => {
   const { t } = useTranslation();
 
-  const { subscriptions } = useStores();
+  const { subscriptions, pins } = useStores();
   const { model: document, menuState } = useMenuContext<Document>();
 
-  const { data, loading, error, request } = useRequest(() =>
-    subscriptions.fetchOne({
-      documentId: document.id,
-      event: "documents.update",
-    })
+  const {
+    loading: auxDataLoading,
+    loaded: auxDataLoaded,
+    request: auxDataRequest,
+  } = useRequest(() =>
+    Promise.all([
+      subscriptions.fetchOne({
+        documentId: document.id,
+        event: SubscriptionType.Document,
+      }),
+      document.collectionId
+        ? subscriptions.fetchOne({
+            collectionId: document.collectionId,
+            event: SubscriptionType.Document,
+          })
+        : noop,
+      pins.fetchOne({
+        documentId: document.id,
+        collectionId: document.collectionId ?? null,
+      }),
+    ])
   );
 
   const handlePointerEnter = React.useCallback(() => {
-    if (isUndefined(data ?? error) && !loading) {
-      void request();
+    if (!auxDataLoading && !auxDataLoaded) {
+      void auxDataRequest();
       void document.loadRelations();
     }
-  }, [data, error, loading, request, document]);
+  }, [auxDataLoading, auxDataLoaded, auxDataRequest, document]);
 
   return label ? (
     <MenuButton
@@ -131,6 +156,7 @@ type MenuContentProps = {
   onOpen?: () => void;
   onClose?: () => void;
   onFindAndReplace?: () => void;
+  onSelectTemplate?: (template: Document) => void;
   onRename?: () => void;
   showDisplayOptions?: boolean;
   showToggleEmbeds?: boolean;
@@ -140,6 +166,7 @@ const MenuContent: React.FC<MenuContentProps> = observer(function MenuContent_({
   onOpen,
   onClose,
   onFindAndReplace,
+  onSelectTemplate,
   onRename,
   showDisplayOptions,
   showToggleEmbeds,
@@ -202,6 +229,11 @@ const MenuContent: React.FC<MenuContentProps> = observer(function MenuContent_({
     [collections.orderedData, handleRestore, policies]
   );
 
+  const templateMenuItems = useTemplateMenuItems({
+    document,
+    onSelectTemplate,
+  });
+
   return !isEmpty(can) ? (
     <ContextMenu
       {...menuState}
@@ -245,8 +277,20 @@ const MenuContent: React.FC<MenuContentProps> = observer(function MenuContent_({
           },
           actionToMenuItem(starDocument, context),
           actionToMenuItem(unstarDocument, context),
-          actionToMenuItem(subscribeDocument, context),
-          actionToMenuItem(unsubscribeDocument, context),
+          {
+            ...actionToMenuItem(subscribeDocument, context),
+            disabled: collection?.isSubscribed,
+            tooltip: collection?.isSubscribed
+              ? t("Subscription inherited from collection")
+              : undefined,
+          } as MenuItemButton,
+          {
+            ...actionToMenuItem(unsubscribeDocument, context),
+            disabled: collection?.isSubscribed,
+            tooltip: collection?.isSubscribed
+              ? t("Subscription inherited from collection")
+              : undefined,
+          } as MenuItemButton,
           {
             type: "button",
             title: `${t("Find and replace")}…`,
@@ -282,6 +326,12 @@ const MenuContent: React.FC<MenuContentProps> = observer(function MenuContent_({
           actionToMenuItem(archiveDocument, context),
           actionToMenuItem(moveDocument, context),
           actionToMenuItem(moveTemplate, context),
+          {
+            type: "submenu",
+            title: t("Apply template"),
+            icon: <ShapesIcon />,
+            items: templateMenuItems,
+          },
           actionToMenuItem(pinDocument, context),
           actionToMenuItem(createDocumentFromTemplate, context),
           {
@@ -355,6 +405,7 @@ function DocumentMenu({
   modal = true,
   showToggleEmbeds,
   showDisplayOptions,
+  onSelectTemplate,
   label,
   onRename,
   onOpen,
@@ -418,7 +469,7 @@ function DocumentMenu({
 
   return (
     <>
-      <VisuallyHidden>
+      <VisuallyHidden.Root>
         <label>
           {t("Import document")}
           <input
@@ -430,7 +481,7 @@ function DocumentMenu({
             tabIndex={-1}
           />
         </label>
-      </VisuallyHidden>
+      </VisuallyHidden.Root>
       <MenuContext.Provider value={{ model: document, menuState }}>
         <MenuTrigger label={label} onTrigger={showMenu} />
         {isMenuVisible ? (
@@ -438,6 +489,7 @@ function DocumentMenu({
             onOpen={onOpen}
             onClose={onClose}
             onRename={onRename}
+            onSelectTemplate={onSelectTemplate}
             showDisplayOptions={showDisplayOptions}
             showToggleEmbeds={showToggleEmbeds}
           />

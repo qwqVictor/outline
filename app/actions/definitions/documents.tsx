@@ -29,8 +29,8 @@ import {
   PadlockIcon,
   GlobeIcon,
   LogoutIcon,
+  CaseSensitiveIcon,
 } from "outline-icons";
-import * as React from "react";
 import { toast } from "sonner";
 import Icon from "@shared/components/Icon";
 import {
@@ -121,6 +121,20 @@ export const createDocument = createAction({
   },
   perform: ({ activeCollectionId, sidebarContext }) =>
     history.push(newDocumentPath(activeCollectionId), {
+      sidebarContext,
+    }),
+});
+
+export const createDraftDocument = createAction({
+  name: ({ t }) => t("New draft"),
+  analyticsName: "New document",
+  section: DocumentSection,
+  icon: <NewDocumentIcon />,
+  keywords: "create document",
+  visible: ({ currentTeamId, stores }) =>
+    !!currentTeamId && stores.policies.abilities(currentTeamId).createDocument,
+  perform: ({ sidebarContext }) =>
+    history.push(newDocumentPath(), {
       sidebarContext,
     }),
 });
@@ -319,6 +333,7 @@ export const subscribeDocument = createAction({
     const document = stores.documents.get(activeDocumentId);
 
     return (
+      !document?.collection?.isSubscribed &&
       !document?.isSubscribed &&
       stores.policies.abilities(activeDocumentId).subscribe
     );
@@ -347,8 +362,9 @@ export const unsubscribeDocument = createAction({
     const document = stores.documents.get(activeDocumentId);
 
     return (
-      !!document?.isSubscribed &&
-      stores.policies.abilities(activeDocumentId).unsubscribe
+      !!document?.collection?.isSubscribed ||
+      (!!document?.isSubscribed &&
+        stores.policies.abilities(activeDocumentId).unsubscribe)
     );
   },
   perform: async ({ activeDocumentId, stores, currentUserId, t }) => {
@@ -494,6 +510,25 @@ export const copyDocumentAsMarkdown = createAction({
   },
 });
 
+export const copyDocumentAsPlainText = createAction({
+  name: ({ t }) => t("Copy as text"),
+  section: ActiveDocumentSection,
+  keywords: "clipboard",
+  icon: <CaseSensitiveIcon />,
+  iconInContextMenu: false,
+  visible: ({ activeDocumentId, stores }) =>
+    !!activeDocumentId && stores.policies.abilities(activeDocumentId).download,
+  perform: ({ stores, activeDocumentId, t }) => {
+    const document = activeDocumentId
+      ? stores.documents.get(activeDocumentId)
+      : undefined;
+    if (document) {
+      copy(document.toPlainText());
+      toast.success(t("Text copied to clipboard"));
+    }
+  },
+});
+
 export const copyDocumentShareLink = createAction({
   name: ({ t }) => t("Copy public link"),
   section: ActiveDocumentSection,
@@ -539,7 +574,12 @@ export const copyDocument = createAction({
   section: ActiveDocumentSection,
   icon: <CopyIcon />,
   keywords: "clipboard",
-  children: [copyDocumentLink, copyDocumentShareLink, copyDocumentAsMarkdown],
+  children: [
+    copyDocumentLink,
+    copyDocumentShareLink,
+    copyDocumentAsMarkdown,
+    copyDocumentAsPlainText,
+  ],
 });
 
 export const duplicateDocument = createAction({
@@ -667,6 +707,7 @@ export const searchInDocument = createAction({
   name: ({ t }) => t("Search in document"),
   analyticsName: "Search document",
   section: ActiveDocumentSection,
+  shortcut: [`Meta+/`],
   icon: <SearchIcon />,
   visible: ({ stores, activeDocumentId }) => {
     if (!activeDocumentId) {
@@ -676,7 +717,7 @@ export const searchInDocument = createAction({
     return !!document?.isActive;
   },
   perform: ({ activeDocumentId }) => {
-    history.push(searchPath(undefined, { documentId: activeDocumentId }));
+    history.push(searchPath({ documentId: activeDocumentId }));
   },
 });
 
@@ -709,7 +750,7 @@ export const importDocument = createAction({
 
     return false;
   },
-  perform: ({ activeCollectionId, activeDocumentId, stores }) => {
+  perform: ({ activeDocumentId, activeCollectionId, stores }) => {
     const { documents } = stores;
     const input = document.createElement("input");
     input.type = "file";
@@ -789,15 +830,15 @@ export const openRandomDocument = createAction({
   },
 });
 
-export const searchDocumentsForQuery = (searchQuery: string) =>
+export const searchDocumentsForQuery = (query: string) =>
   createAction({
     id: "search",
     name: ({ t }) =>
-      t(`Search documents for "{{searchQuery}}"`, { searchQuery }),
+      t(`Search documents for "{{searchQuery}}"`, { searchQuery: query }),
     analyticsName: "Search documents",
     section: DocumentSection,
     icon: <SearchIcon />,
-    perform: () => history.push(searchPath(searchQuery)),
+    perform: () => history.push(searchPath({ query })),
     visible: ({ location }) => location.pathname !== searchPath(),
   });
 
@@ -1040,12 +1081,17 @@ export const openDocumentComments = createAction({
   analyticsName: "Open comments",
   section: ActiveDocumentSection,
   icon: <CommentIcon />,
-  visible: ({ activeDocumentId, stores }) => {
+  visible: ({ activeCollectionId, activeDocumentId, stores }) => {
     const can = stores.policies.abilities(activeDocumentId ?? "");
+    const collection = activeCollectionId
+      ? stores.collections.get(activeCollectionId)
+      : undefined;
+
     return (
       !!activeDocumentId &&
       can.comment &&
-      !!stores.auth.team?.getPreference(TeamPreference.Commenting)
+      (collection?.canCreateComment ??
+        !!stores.auth.team?.getPreference(TeamPreference.Commenting))
     );
   },
   perform: ({ activeDocumentId, stores }) => {
@@ -1169,7 +1215,7 @@ export const leaveDocument = createAction({
       } as UserMembership);
 
       toast.success(t("You have left the shared document"));
-    } catch (err) {
+    } catch (_err) {
       toast.error(t("Could not leave document"));
     }
   },
@@ -1179,6 +1225,7 @@ export const rootDocumentActions = [
   openDocument,
   archiveDocument,
   createDocument,
+  createDraftDocument,
   createNestedDocument,
   createTemplateFromDocument,
   deleteDocument,
@@ -1187,12 +1234,14 @@ export const rootDocumentActions = [
   copyDocumentLink,
   copyDocumentShareLink,
   copyDocumentAsMarkdown,
+  copyDocumentAsPlainText,
   starDocument,
   unstarDocument,
   publishDocument,
   unpublishDocument,
   subscribeDocument,
   unsubscribeDocument,
+  searchInDocument,
   duplicateDocument,
   leaveDocument,
   moveTemplateToWorkspace,

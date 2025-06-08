@@ -133,10 +133,19 @@ describe("SearchHelper", () => {
 
     test("should handle backslashes in search term", async () => {
       const team = await buildTeam();
-      const { results } = await SearchHelper.searchForTeam(team, {
-        query: "\\\\",
+      const collection = await buildCollection({
+        teamId: team.id,
       });
-      expect(results.length).toBe(0);
+      const document = await buildDocument({
+        teamId: team.id,
+        collectionId: collection.id,
+        title: "test with backslash \\",
+      });
+      const { results } = await SearchHelper.searchForTeam(team, {
+        query: "test with backslash \\",
+      });
+      expect(results.length).toBe(1);
+      expect(results[0].document?.id).toBe(document.id);
     });
 
     test("should return the total count of search results", async () => {
@@ -858,6 +867,51 @@ describe("SearchHelper", () => {
         statusFilter: [StatusFilter.Draft, StatusFilter.Archived],
       });
       expect(documents.length).toBe(2);
+    });
+  });
+
+  describe("#searchCollectionsForUser", () => {
+    test("should return search results from collections", async () => {
+      const team = await buildTeam();
+      const user = await buildUser({ teamId: team.id });
+      const collection1 = await buildCollection({
+        teamId: team.id,
+        userId: user.id,
+        name: "Test Collection",
+      });
+      await buildCollection({
+        teamId: team.id,
+        userId: user.id,
+        name: "Other Collection",
+      });
+
+      const results = await SearchHelper.searchCollectionsForUser(user, {
+        query: "test",
+      });
+
+      expect(results.length).toBe(1);
+      expect(results[0].id).toBe(collection1.id);
+    });
+
+    test("should return all collections when no query provided", async () => {
+      const team = await buildTeam();
+      const user = await buildUser({ teamId: team.id });
+      const collection1 = await buildCollection({
+        teamId: team.id,
+        userId: user.id,
+        name: "Alpha",
+      });
+      const collection2 = await buildCollection({
+        teamId: team.id,
+        userId: user.id,
+        name: "Beta",
+      });
+
+      const results = await SearchHelper.searchCollectionsForUser(user);
+
+      expect(results.length).toBe(2);
+      expect(results[0].id).toBe(collection1.id);
+      expect(results[1].id).toBe(collection2.id);
     });
   });
 

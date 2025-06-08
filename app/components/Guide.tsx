@@ -36,8 +36,8 @@ const Guide: React.FC<Props> = ({
 
   return (
     <DialogBackdrop {...dialog}>
-      {(props) => (
-        <Backdrop {...props}>
+      {(backdropProps) => (
+        <Backdrop {...backdropProps}>
           <Dialog
             {...dialog}
             aria-label={title}
@@ -45,8 +45,8 @@ const Guide: React.FC<Props> = ({
             hideOnEsc
             hide={onRequestClose}
           >
-            {(props) => (
-              <Scene {...props} {...rest}>
+            {(dialogProps) => (
+              <Scene {...dialogProps} {...rest}>
                 <Content>
                   {title && <Header>{title}</Header>}
                   {children}
@@ -73,7 +73,7 @@ const Backdrop = styled.div`
   right: 0;
   bottom: 0;
   background-color: ${s("backdrop")} !important;
-  z-index: ${depths.modalOverlay};
+  z-index: ${depths.overlay};
   transition: opacity 200ms ease-in-out;
   opacity: 0;
 

@@ -15,7 +15,7 @@ import scrollIntoView from "scroll-into-view-if-needed";
 import styled, { useTheme } from "styled-components";
 import breakpoint from "styled-components-breakpoint";
 import Icon from "@shared/components/Icon";
-import { NavigationNode } from "@shared/types";
+import { NavigationNode, NavigationNodeType } from "@shared/types";
 import { isModKey } from "@shared/utils/keyboard";
 import DocumentExplorerNode from "~/components/DocumentExplorerNode";
 import DocumentExplorerSearchResult from "~/components/DocumentExplorerSearchResult";
@@ -60,7 +60,7 @@ function DocumentExplorer({ onSubmit, onSelect, items, defaultValue }: Props) {
     if (defaultValue) {
       const node = items.find((item) => item.id === defaultValue);
       if (node) {
-        return ancestors(node).map((node) => node.id);
+        return ancestors(node).map((ancestorNode) => ancestorNode.id);
       }
     }
     return [];
@@ -77,6 +77,10 @@ function DocumentExplorer({ onSubmit, onSelect, items, defaultValue }: Props) {
 
   const VERTICAL_PADDING = 6;
   const HORIZONTAL_PADDING = 24;
+
+  const recentlyViewedItemIds = documents.recentlyViewed
+    .slice(0, 5)
+    .map((item) => item.id);
 
   const searchIndex = React.useMemo(
     () =>
@@ -95,10 +99,10 @@ function DocumentExplorer({ onSubmit, onSelect, items, defaultValue }: Props) {
   }, [searchTerm]);
 
   React.useEffect(() => {
-    setItemRefs((itemRefs) =>
+    setItemRefs((existingItemRefs) =>
       map(
         fill(Array(items.length), 0),
-        (_, i) => itemRefs[i] || React.createRef()
+        (_, i) => existingItemRefs[i] || React.createRef()
       )
     );
   }, [items.length]);
@@ -126,11 +130,18 @@ function DocumentExplorer({ onSubmit, onSelect, items, defaultValue }: Props) {
     return searchTerm
       ? searchIndex.search(searchTerm)
       : items
-          .filter((item) => item.type === "collection")
+          .filter((item) => recentlyViewedItemIds.includes(item.id))
+          .concat(
+            items.filter((item) => item.type === NavigationNodeType.Collection)
+          )
           .flatMap(includeDescendants);
   }
 
   const nodes = getNodes();
+  const baseDepth = nodes.reduce(
+    (min, node) => (node.depth ? Math.min(min, node.depth) : min),
+    Infinity
+  );
 
   const scrollNodeIntoView = React.useCallback(
     (node: number) => {
@@ -169,7 +180,7 @@ function DocumentExplorer({ onSubmit, onSelect, items, defaultValue }: Props) {
     );
 
     // remove children
-    const newNodes = filter(nodes, (node) => !includes(descendantIds, node.id));
+    const newNodes = filter(nodes, (n) => !includes(descendantIds, n.id));
     const scrollOffset = calculateInitialScrollOffset(newNodes.length);
     setInitialScrollOffset(scrollOffset);
   };
@@ -304,7 +315,7 @@ function DocumentExplorer({ onSubmit, onSelect, items, defaultValue }: Props) {
           expanded={isExpanded(index)}
           icon={renderedIcon}
           title={title}
-          depth={node.depth as number}
+          depth={(node.depth ?? 0) - baseDepth}
           hasChildren={hasChildren(index)}
           ref={itemRefs[index]}
         />

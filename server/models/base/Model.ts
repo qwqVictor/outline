@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/ban-types */
 import isEqual from "fast-deep-equal";
 import isArray from "lodash/isArray";
 import isObject from "lodash/isObject";
@@ -43,8 +42,8 @@ type EventOptions = EventOverrideOptions & {
 export type HookContext = APIContext["context"] & { event?: EventOptions };
 
 class Model<
-  TModelAttributes extends {} = any,
-  TCreationAttributes extends {} = TModelAttributes
+  TModelAttributes extends object = any,
+  TCreationAttributes extends object = TModelAttributes
 > extends SequelizeModel<TModelAttributes, TCreationAttributes> {
   /**
    * The namespace to use for events - defaults to the table name if none is provided.
@@ -280,11 +279,16 @@ class Model<
    *
    * @param query The query options.
    * @param callback The function to call for each batch of results
+   * @return The total number of results processed.
    */
   static async findAllInBatches<T extends Model>(
-    query: Replace<FindOptions<T>, "limit", "batchLimit">,
+    query: Replace<FindOptions<T>, "limit", "batchLimit"> & {
+      /** The maximum number of results to return, after which the query will stop. */
+      totalLimit?: number;
+    },
     callback: (results: Array<T>, query: FindOptions<T>) => Promise<void>
-  ) {
+  ): Promise<number> {
+    let total = 0;
     const mappedQuery = {
       ...query,
       offset: query.offset ?? 0,
@@ -296,9 +300,15 @@ class Model<
     do {
       // @ts-expect-error this T
       results = await this.findAll<T>(mappedQuery);
+      total += results.length;
       await callback(results, mappedQuery);
       mappedQuery.offset += mappedQuery.limit;
-    } while (results.length >= mappedQuery.limit);
+    } while (
+      results.length >= mappedQuery.limit &&
+      (mappedQuery.totalLimit ?? Infinity) > mappedQuery.offset
+    );
+
+    return total;
   }
 
   /**

@@ -1,14 +1,15 @@
-import * as React from "react";
+import { useEffect } from "react";
 import usePersistedState from "~/hooks/usePersistedState";
 import useStores from "./useStores";
 
-export function usePinnedDocuments(
-  urlId: "home" | string,
-  collectionId?: string
-) {
+type UrlId = "home" | string;
+
+export const pinsCacheKey = (urlId: UrlId) => `pins-${urlId}`;
+
+export function usePinnedDocuments(urlId: UrlId, collectionId?: string) {
   const { pins } = useStores();
   const [pinsCacheCount, setPinsCacheCount] = usePersistedState<number>(
-    `pins-${urlId}`,
+    pinsCacheKey(urlId),
     0
   );
 
@@ -20,7 +21,7 @@ export function usePinnedDocuments(
       : [];
   }
 
-  React.useEffect(() => {
+  useEffect(() => {
     void pins
       .fetchPage(urlId === "home" ? undefined : { collectionId })
       .then(() => {
