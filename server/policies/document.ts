@@ -60,7 +60,8 @@ allow(User, "comment", Document, (actor, document) =>
     ),
     isTeamMutable(actor),
     !!document?.isActive,
-    !document?.template
+    !document?.template,
+    or(!document?.collection, document?.collection?.commenting !== false)
   )
 );
 
@@ -157,6 +158,7 @@ allow(User, "move", Document, (actor, document) =>
     or(
       can(actor, "updateDocument", document?.collection),
       and(!!document?.isDraft && actor.id === document?.createdById),
+      and(!!document?.isDraft && !document?.collection),
       and(
         !!document?.isWorkspaceTemplate,
         or(
@@ -206,7 +208,7 @@ allow(User, "delete", Document, (actor, document) =>
   )
 );
 
-allow(User, ["restore", "permanentDelete"], Document, (actor, document) =>
+allow(User, "restore", Document, (actor, document) =>
   and(
     isTeamModel(actor, document),
     !actor.isGuest,
@@ -224,6 +226,15 @@ allow(User, ["restore", "permanentDelete"], Document, (actor, document) =>
       ),
       !document?.collection
     )
+  )
+);
+
+allow(User, "permanentDelete", Document, (actor, document) =>
+  and(
+    isTeamModel(actor, document),
+    !actor.isGuest,
+    !!document?.isDeleted,
+    isTeamAdmin(actor, document)
   )
 );
 

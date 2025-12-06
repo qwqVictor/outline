@@ -1,5 +1,5 @@
 import { observer } from "mobx-react";
-import { lazy, useState, useCallback, useEffect, Suspense } from "react";
+import { useState, useCallback, useEffect, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import {
   useParams,
@@ -38,6 +38,7 @@ import usePersistedState from "~/hooks/usePersistedState";
 import { usePinnedDocuments } from "~/hooks/usePinnedDocuments";
 import usePolicy from "~/hooks/usePolicy";
 import useStores from "~/hooks/useStores";
+import { NotFoundError } from "~/utils/errors";
 import { collectionPath, updateCollectionPath } from "~/utils/routeHelpers";
 import Error404 from "../Errors/Error404";
 import Actions from "./components/Actions";
@@ -46,13 +47,17 @@ import Empty from "./components/Empty";
 import MembershipPreview from "./components/MembershipPreview";
 import Notices from "./components/Notices";
 import Overview from "./components/Overview";
-import ShareButton from "./components/ShareButton";
+import first from "lodash/first";
+import lazyWithRetry from "~/utils/lazyWithRetry";
 
-const IconPicker = lazy(() => import("~/components/IconPicker"));
+const IconPicker = lazyWithRetry(() => import("~/components/IconPicker"));
+
+const ShareButton = lazyWithRetry(() => import("./components/ShareButton"));
 
 enum CollectionPath {
   Overview = "overview",
   Recent = "recent",
+  Popular = "popular",
   Updated = "updated",
   Published = "published",
   Old = "old",
@@ -65,7 +70,7 @@ const CollectionScene = observer(function _CollectionScene() {
   const match = useRouteMatch();
   const location = useLocation();
   const { t } = useTranslation();
-  const { documents, collections, ui } = useStores();
+  const { documents, collections, shares, ui } = useStores();
   const [error, setError] = useState<Error | undefined>();
   const currentPath = location.pathname;
   const [, setLastVisitedPath] = useLastVisitedPath();
@@ -74,8 +79,7 @@ const CollectionScene = observer(function _CollectionScene() {
   const id = params.id || "";
   const urlId = id.split("-").pop() ?? "";
 
-  const collection: Collection | null | undefined =
-    collections.getByUrl(id) || collections.get(id);
+  const collection: Collection | null | undefined = collections.get(id);
   const can = usePolicy(collection);
 
   const { pins, count } = usePinnedDocuments(urlId, collection?.id);
@@ -129,6 +133,16 @@ const CollectionScene = observer(function _CollectionScene() {
 
     void fetchData();
   }, []);
+
+  useEffect(() => {
+    if (collection) {
+      shares.fetchOne({ collectionId: collection.id }).catch((err) => {
+        if (!(err instanceof NotFoundError)) {
+          throw err;
+        }
+      });
+    }
+  }, [shares, collection]);
 
   useCommandBarActions([editCollection], [ui.activeCollectionId ?? "none"]);
 
@@ -184,7 +198,7 @@ const CollectionScene = observer(function _CollectionScene() {
       }
     >
       <DropToImport
-        accept={documents.importFileTypes.join(", ")}
+        accept={documents.importFileTypesString}
         disabled={!can.createDocument}
         collectionId={collection.id}
       >
@@ -196,8 +210,8 @@ const CollectionScene = observer(function _CollectionScene() {
                 <Suspense fallback={fallbackIcon}>
                   <IconPicker
                     icon={collection.icon ?? "collection"}
-                    color={collection.color ?? colorPalette[0]}
-                    initial={collection.name[0]}
+                    color={collection.color ?? (first(colorPalette) as string)}
+                    initial={collection.initial}
                     size={40}
                     popoverPosition="bottom-start"
                     onChange={handleIconChange}
@@ -229,6 +243,9 @@ const CollectionScene = observer(function _CollectionScene() {
               <Tab {...tabProps(CollectionPath.Recent)}>{t("Documents")}</Tab>
               {!collection.isArchived && (
                 <>
+                  <Tab {...tabProps(CollectionPath.Popular)}>
+                    {t("Popular")}
+                  </Tab>
                   <Tab {...tabProps(CollectionPath.Updated)}>
                     {t("Recently updated")}
                   </Tab>
@@ -335,6 +352,21 @@ const CollectionScene = observer(function _CollectionScene() {
                         collection.id
                       )}
                       fetch={documents.fetchRecentlyUpdated}
+                      options={{
+                        collectionId: collection.id,
+                      }}
+                    />
+                  </Route>
+                  <Route
+                    path={collectionPath(
+                      collection.path,
+                      CollectionPath.Popular
+                    )}
+                  >
+                    <PaginatedDocumentList
+                      key="popular"
+                      documents={documents.popularInCollection(collection.id)}
+                      fetch={documents.fetchPopular}
                       options={{
                         collectionId: collection.id,
                       }}

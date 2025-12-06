@@ -57,6 +57,7 @@ async function presentDocument(
     icon: document.icon,
     color: document.color,
     tasks: document.tasks,
+    language: document.language,
     createdAt: document.createdAt,
     createdBy: undefined,
     updatedAt: document.updatedAt,
@@ -93,12 +94,14 @@ async function presentDocument(
     res.templateId = document.templateId;
     res.template = document.template;
     res.insightsEnabled = document.insightsEnabled;
+    res.popularityScore = document.popularityScore;
     res.sourceMetadata = document.sourceMetadata
       ? {
           importedAt: source?.createdAt ?? document.createdAt,
           importType: source?.format,
           createdByName: document.sourceMetadata.createdByName,
           fileName: document.sourceMetadata?.fileName,
+          originalDocumentId: document.sourceMetadata?.originalDocumentId,
         }
       : undefined;
   }

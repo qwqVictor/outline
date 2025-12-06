@@ -1,6 +1,8 @@
 import env from "@server/env";
-import { User, Team } from "@server/models";
+import { User, Team, type Group } from "@server/models";
 import Model from "@server/models/base/Model";
+import { GroupPermission } from "@shared/types";
+import invariant from "invariant";
 
 type Args = boolean | string | Args[];
 
@@ -53,6 +55,9 @@ export function isOwner(
   if ("userId" in model) {
     return actor.id === model.userId;
   }
+  if ("createdById" in model) {
+    return actor.id === model.createdById;
+  }
   return false;
 }
 
@@ -99,4 +104,37 @@ export function isCloudHosted() {
     return false;
   }
   return true;
+}
+
+/**
+ * Check if the actor is an admin of the group.
+ *
+ * @param actor The actor to check
+ * @param model The group model to check
+ * @returns True if the actor is an admin of the group
+ */
+export function isGroupAdmin(actor: User, model: Group | null): boolean {
+  if (!model || !("id" in model)) {
+    return false;
+  }
+
+  invariant(
+    model.groupUsers,
+    "Group users relationship not loaded, ensure to include groupUsers when fetching the group"
+  );
+
+  // Check if the user is a group admin
+  const membership = model.groupUsers.find(
+    (gu) => gu.userId === actor.id && gu.permission === GroupPermission.Admin
+  );
+  if (membership) {
+    return true;
+  }
+
+  // Team admins are always group admins
+  if (isTeamAdmin(actor, model)) {
+    return true;
+  }
+
+  return false;
 }
