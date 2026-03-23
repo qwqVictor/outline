@@ -26,6 +26,9 @@ if (environment.NODE_ENV === "development") {
 
 export default () =>
   defineConfig({
+    build: {
+      target: ['ios15', 'es2020'] // or just 'ios15'
+    },
     root: "./",
     publicDir: "./server/static",
     base: (environment.CDN_URL ?? "") + "/static/",
